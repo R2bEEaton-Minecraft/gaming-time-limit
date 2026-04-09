@@ -68,3 +68,9 @@ tasks.withType(GenerateModuleMetadata).configureEach {
 tasks.withType(Sign).configureEach {
     enabled = false
 }
+tasks.withType(JavaCompile).configureEach {
+    options.release.set(Integer.parseInt("${gradle.ext.java_version}"))
+}
+tasks.matching { it.name == "downgradeJar" || it.name == "shadeDowngradedApi" }.configureEach {
+    enabled = false
+}
