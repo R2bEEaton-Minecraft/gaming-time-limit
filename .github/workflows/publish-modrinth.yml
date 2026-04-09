@@ -1,0 +1,308 @@
+name: publish-modrinth
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_number:
+        description: 'Mod version to publish. Leave blank to use gradle.properties mod_version.'
+        required: false
+        type: string
+      changelog:
+        description: 'Changelog text for all uploaded Modrinth versions.'
+        required: false
+        type: string
+      version_type:
+        description: 'Modrinth release channel.'
+        required: true
+        default: release
+        type: choice
+        options:
+          - release
+          - beta
+          - alpha
+      version_status:
+        description: 'Visibility status for uploaded Modrinth versions.'
+        required: true
+        default: listed
+        type: choice
+        options:
+          - listed
+          - unlisted
+          - draft
+      skip_existing:
+        description: 'Skip a Minecraft version if this mod version is already on Modrinth for it.'
+        required: true
+        default: true
+        type: boolean
+      dry_run:
+        description: 'Build everything but do not upload to Modrinth.'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  discover-targets:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.discover.outputs.matrix }}
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v4
+
+      - name: discover supported Minecraft versions
+        id: discover
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+
+          def sort_key(version: str) -> tuple[int, ...]:
+              return tuple(int(part) for part in version.split('.'))
+
+          versions = sorted(
+              (path.stem for path in Path("versionProperties").glob("*.properties")),
+              key=sort_key,
+          )
+          print(f"matrix={json.dumps({'mc_ver': versions}, separators=(',', ':'))}")
+          PY
+
+  publish:
+    needs: discover-targets
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix: ${{ fromJson(needs.discover-targets.outputs.matrix) }}
+    name: publish ${{ matrix.mc_ver }}
+    env:
+      MODRINTH_PROJECT_ID: ${{ secrets.MODRINTH_PROJECT_ID }}
+      MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v4
+
+      - name: validate gradle wrapper
+        uses: gradle/actions/wrapper-validation@v4
+
+      - name: validate required secrets
+        if: ${{ !inputs.dry_run }}
+        run: |
+          test -n "$MODRINTH_PROJECT_ID" || { echo "Missing MODRINTH_PROJECT_ID secret"; exit 1; }
+          test -n "$MODRINTH_TOKEN" || { echo "Missing MODRINTH_TOKEN secret"; exit 1; }
+
+      - name: setup jdk
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: 'microsoft'
+
+      - name: make gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: resolve Modrinth project id
+        id: project
+        if: ${{ !inputs.dry_run }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          response="$(
+            curl --fail --silent --show-error \
+              -H "Authorization: $MODRINTH_TOKEN" \
+              -H "User-Agent: github.com/${{ github.repository }}" \
+              "https://api.modrinth.com/v2/project/${MODRINTH_PROJECT_ID}"
+          )"
+
+          resolved_project_id="$(jq -r '.id' <<<"$response")"
+          if [ -z "$resolved_project_id" ] || [ "$resolved_project_id" = "null" ]; then
+            echo "Failed to resolve Modrinth project ID from MODRINTH_PROJECT_ID secret." >&2
+            exit 1
+          fi
+
+          echo "project_id=$resolved_project_id" >> "$GITHUB_OUTPUT"
+          echo "Resolved Modrinth project ID: $resolved_project_id" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: resolve version metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version_number='${{ inputs.version_number }}'
+          if [ -z "$version_number" ]; then
+            version_number="$(awk -F= '/^mod_version=/{print $2}' gradle.properties | tr -d '\r')"
+          fi
+
+          mod_name="$(awk -F= '/^mod_name=/{print $2}' gradle.properties | tr -d '\r')"
+          if [ -z "$mod_name" ]; then
+            mod_name="Gaming Time Limit"
+          fi
+
+          if [ -z "$version_number" ]; then
+            echo "Failed to resolve version number" >&2
+            exit 1
+          fi
+
+          {
+            echo "mod_name=$mod_name"
+            echo "version_number=$version_number"
+            echo "display_name=$mod_name $version_number for Minecraft ${{ matrix.mc_ver }}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: resolve target metadata
+        id: target
+        shell: bash
+        env:
+          MC_VER: ${{ matrix.mc_ver }}
+        run: |
+          set -euo pipefail
+
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+          from pathlib import Path
+
+          props = {}
+          for raw_line in Path(f"versionProperties/{os.environ['MC_VER']}.properties").read_text().splitlines():
+              line = raw_line.strip()
+              if not line or line.startswith('#') or '=' not in line:
+                  continue
+              key, value = line.split('=', 1)
+              props[key.strip()] = value.strip()
+
+          loaders = [entry.strip() for entry in props["builds_for"].split(',') if entry.strip()]
+          gradle_tasks = [f":{loader}:assemble" for loader in loaders]
+
+          print(f"loaders_json={json.dumps(loaders, separators=(',', ':'))}")
+          print(f"loader_summary={', '.join(loaders)}")
+          print(f"gradle_tasks={' '.join(gradle_tasks)}")
+          PY
+
+      - name: check for existing Modrinth version
+        id: existing
+        if: ${{ inputs.skip_existing && !inputs.dry_run }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          response="$(
+            curl --fail --silent --show-error --get \
+              -H "Authorization: $MODRINTH_TOKEN" \
+              -H "User-Agent: github.com/${{ github.repository }}" \
+              --data-urlencode 'include_changelog=false' \
+              --data-urlencode 'game_versions=["${{ matrix.mc_ver }}"]' \
+              --data-urlencode 'loaders=${{ steps.target.outputs.loaders_json }}' \
+              "https://api.modrinth.com/v2/project/${{ steps.project.outputs.project_id }}/version"
+          )"
+
+          if jq -e --arg version_number '${{ steps.meta.outputs.version_number }}' '.[] | select(.version_number == $version_number)' >/dev/null <<<"$response"; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Skipping Minecraft ${{ matrix.mc_ver }} because version ${{ steps.meta.outputs.version_number }} already exists on Modrinth." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: build target jars
+        id: build
+        if: ${{ !inputs.skip_existing || steps.existing.outputs.exists != 'true' || inputs.dry_run }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mapfile -t loaders < <(jq -r '.[]' <<< '${{ steps.target.outputs.loaders_json }}')
+          mapfile -t gradle_tasks < <(printf '%s\n' "${loaders[@]}" | sed 's#^#:#; s#$#:assemble#')
+
+          ./gradlew "${gradle_tasks[@]}" -Pmc_ver=${{ matrix.mc_ver }} --console=plain
+
+          jar_paths=()
+          for loader in "${loaders[@]}"; do
+            jar_path="$(find "${loader}/build/libs" -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' ! -name '*-dev.jar' | head -n 1)"
+            if [ -z "$jar_path" ]; then
+              echo "No primary jar found in ${loader}/build/libs" >&2
+              exit 1
+            fi
+
+            jar_paths+=("$jar_path")
+            echo "Built $(basename "$jar_path") for loader ${loader} on Minecraft ${{ matrix.mc_ver }}." >> "$GITHUB_STEP_SUMMARY"
+          done
+
+          jar_paths_json="$(printf '%s\n' "${jar_paths[@]}" | jq -R . | jq -s -c .)"
+          echo "jar_paths_json=$jar_paths_json" >> "$GITHUB_OUTPUT"
+
+      - name: upload to Modrinth
+        if: ${{ !inputs.dry_run && (!inputs.skip_existing || steps.existing.outputs.exists != 'true') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mapfile -t jar_paths < <(jq -r '.[]' <<< '${{ steps.build.outputs.jar_paths_json }}')
+          mapfile -t loaders < <(jq -r '.[]' <<< '${{ steps.target.outputs.loaders_json }}')
+
+          file_parts=()
+          form_args=()
+          for i in "${!jar_paths[@]}"; do
+            part_name="file${i}"
+            file_parts+=("$part_name")
+            form_args+=(-F "${part_name}=@${jar_paths[$i]}")
+          done
+
+          file_parts_json="$(printf '%s\n' "${file_parts[@]}" | jq -R . | jq -s -c .)"
+          loaders_json="$(printf '%s\n' "${loaders[@]}" | jq -R . | jq -s -c .)"
+          primary_file="${file_parts[0]}"
+
+          payload="$(
+            jq -n \
+              --arg name '${{ steps.meta.outputs.display_name }}' \
+              --arg version_number '${{ steps.meta.outputs.version_number }}' \
+              --arg changelog '${{ inputs.changelog }}' \
+              --arg version_type '${{ inputs.version_type }}' \
+              --arg status '${{ inputs.version_status }}' \
+              --arg project_id '${{ steps.project.outputs.project_id }}' \
+              --arg game_version '${{ matrix.mc_ver }}' \
+              --arg primary_file "$primary_file" \
+              --argjson loaders "$loaders_json" \
+              --argjson file_parts "$file_parts_json" \
+              '{
+                name: $name,
+                version_number: $version_number,
+                changelog: (if $changelog == "" then null else $changelog end),
+                dependencies: [],
+                game_versions: [$game_version],
+                version_type: $version_type,
+                loaders: $loaders,
+                featured: false,
+                status: $status,
+                project_id: $project_id,
+                file_parts: $file_parts,
+                primary_file: $primary_file
+              }'
+          )"
+
+          response_file="$(mktemp)"
+          http_code="$(
+            curl --silent --show-error \
+              --output "$response_file" \
+              --write-out '%{http_code}' \
+              -H "Authorization: $MODRINTH_TOKEN" \
+              -H "User-Agent: github.com/${{ github.repository }}" \
+              --form-string "data=$payload" \
+              "${form_args[@]}" \
+              "https://api.modrinth.com/v2/version"
+          )"
+
+          if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+            echo "Modrinth upload failed with HTTP $http_code" >&2
+            cat "$response_file" >&2
+            exit 1
+          fi
+
+          response="$(cat "$response_file")"
+          uploaded_id="$(jq -r '.id' <<<"$response")"
+          uploaded_name="$(jq -r '.name' <<<"$response")"
+          echo "Uploaded $uploaded_name ($uploaded_id) for Minecraft ${{ matrix.mc_ver }} with loaders ${{ steps.target.outputs.loader_summary }}." >> "$GITHUB_STEP_SUMMARY"
