@@ -1,0 +1,16 @@
+plugins {
+    id 'unimined-fabric'
+}
+
+repositories {
+    maven { url = "https://maven.terraformersmc.com/releases/" }
+    maven { url = "https://api.modrinth.com/maven" }
+}
+
+dependencies {
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${gradle.ext.fabric_api_version}"
+
+    if ((gradle.ext.has("modmenu_enabled") ? gradle.ext.modmenu_enabled : "false").toBoolean()) {
+        modImplementation "com.terraformersmc:modmenu:${gradle.ext.modmenu_version}"
+    }
+}

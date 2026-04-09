@@ -1,0 +1,17 @@
+{
+  "gamingtimelimit.tab.remaining": "Time Remaining: %s",
+  "gamingtimelimit.kick.message": "Your Minecraft play time for today has run out.",
+  "gamingtimelimit.exhausted.title": "Daily Time Limit Reached",
+  "gamingtimelimit.exhausted.message": "Your Minecraft play time for today has run out. Adjust your settings or wait until the next daily reset.",
+  "gamingtimelimit.exhausted.button": "Open Settings",
+  "gamingtimelimit.exhausted.back": "Back",
+  "gamingtimelimit.screen.title": "Gaming Time Limit",
+  "gamingtimelimit.screen.remaining": "Remaining Today: %s",
+  "gamingtimelimit.screen.save": "Save",
+  "gamingtimelimit.screen.cancel": "Cancel",
+  "gamingtimelimit.screen.defaults": "Defaults",
+  "gamingtimelimit.option.daily_minutes": "Daily Limit (Minutes)",
+  "gamingtimelimit.option.auto_kick": "Kick Automatically At Zero",
+  "gamingtimelimit.option.paused_singleplayer": "Count While Singleplayer Is Paused",
+  "gamingtimelimit.error.minutes": "Enter a whole number from 0 to 1440."
+}

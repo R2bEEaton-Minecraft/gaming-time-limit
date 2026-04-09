@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "cc.spea.gamingtimelimit.mixins",
+  "compatibilityLevel": "JAVA_${java_version}",
+  "mixins": [],
+  "client": [
+    "ConnectScreenMixin",
+    "GuiMixin",
+    "MinecraftMixin",
+    "PlayerTabOverlayMixin",
+    "WorldOpenFlowsMixin"
+  ]
+}

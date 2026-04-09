@@ -1,0 +1,19 @@
+plugins {
+    id 'unimined-common'
+}
+
+repositories {
+
+}
+
+dependencies {
+    testImplementation platform("org.junit:junit-bom:5.10.2")
+    testImplementation "org.junit.jupiter:junit-jupiter"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+    testAnnotationProcessor(manifold.module("preprocessor"))
+    testAnnotationProcessor(manifold.module("strings"))
+}
+
+test {
+    useJUnitPlatform()
+}

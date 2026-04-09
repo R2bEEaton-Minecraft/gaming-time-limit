@@ -1,0 +1,40 @@
+plugins {
+    id 'common'
+    id 'xyz.wagyourtail.unimined'
+}
+
+def usesUnobfuscatedMinecraft = gradle.ext.minecraft_version.tokenize('.').first().toInteger() >= 26
+
+unimined.minecraft(sourceSets.main, true) {
+    version gradle.ext.minecraft_version
+
+    if (!usesUnobfuscatedMinecraft) {
+        mappings {
+            mojmap()
+        }
+    }
+}
+
+if (project.name == "common") return // Don't apply the code below to the common project
+
+unimined.minecraft(sourceSets.main, true) {
+    mods.modImplementation {
+        mixinRemap {
+            reset()
+            enableBaseMixin()
+            enableMixinExtra()
+        }
+    }
+}
+
+dependencies {
+    implementation(project(":common"))
+}
+
+processResources {
+    from project(":common").sourceSets.main.resources
+}
+
+tasks.withType(JavaCompile).configureEach {
+    source(project(":common").sourceSets.main.allSource)
+}

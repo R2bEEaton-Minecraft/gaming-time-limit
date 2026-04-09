@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "${mod_id}",
+  "version": "${version}",
+  "name": "${mod_name}",
+  "icon": "assets/${mod_id}/icon.png",
+  "description": "${description}",
+  "authors": $mod_authors,
+  "contact": {
+    "homepage": "https://fabricmc.net/",
+    "sources": "https://github.com/fabricmc/"
+  },
+  "license": "${license}",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "cc.spea.gamingtimelimit.GamingTimeLimitFabric"
+    ],
+    "modmenu": [
+      "cc.spea.gamingtimelimit.GamingTimeLimitModMenu"
+    ]
+  },
+  "mixins": [
+    "gamingtimelimit.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric-api": "*",
+    "minecraft": $compatible_mc_versions,
+    "java": ">=${java_version}"
+  }
+}
