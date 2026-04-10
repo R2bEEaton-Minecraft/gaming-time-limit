@@ -29,6 +29,7 @@ public abstract class GuiMixin {
             return;
         }
 
+        GamingTimeLimitClient.getInstance().refreshTabFooterNow(this.minecraft);
         Scoreboard scoreboard = this.minecraft.level.getScoreboard();
         Objective objective = scoreboard.getDisplayObjective(DisplaySlot.LIST);
         graphics.nextStratum();
@@ -37,7 +38,7 @@ public abstract class GuiMixin {
     }
 
     private boolean shouldForceSingleplayerTabOverlay() {
-        if (!this.minecraft.options.keyPlayerList.isDown() || !this.minecraft.isLocalServer()) {
+        if (!this.minecraft.options.keyPlayerList.isDown() || !this.minecraft.hasSingleplayerServer()) {
             return false;
         }
 
@@ -84,6 +85,7 @@ public abstract class GuiMixin {
             return;
         }
 
+        GamingTimeLimitClient.getInstance().refreshTabFooterNow(this.minecraft);
         Scoreboard scoreboard = this.minecraft.level.getScoreboard();
         Objective objective = scoreboard.getDisplayObjective(GAMINGTIMELIMIT$listDisplaySlot);
         this.tabList.setVisible(true);
@@ -91,7 +93,7 @@ public abstract class GuiMixin {
     }
 
     private boolean shouldForceSingleplayerTabOverlay() {
-        if (!this.minecraft.options.keyPlayerList.isDown() || !this.minecraft.isLocalServer()) {
+        if (!this.minecraft.options.keyPlayerList.isDown() || !this.minecraft.hasSingleplayerServer()) {
             return false;
         }
 
@@ -111,7 +113,7 @@ public abstract class GuiMixin {
         return this.minecraft.player.connection.getListedOnlinePlayers().size() <= 1;
     }
 }
-#else
+#elif MC_VER == MC_1_21_11
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
@@ -138,6 +140,7 @@ public abstract class GuiMixin {
             return;
         }
 
+        GamingTimeLimitClient.getInstance().refreshTabFooterNow(this.minecraft);
         Scoreboard scoreboard = this.minecraft.level.getScoreboard();
         Objective objective = scoreboard.getDisplayObjective(DisplaySlot.LIST);
         this.tabList.setVisible(true);
@@ -145,7 +148,7 @@ public abstract class GuiMixin {
     }
 
     private boolean shouldForceSingleplayerTabOverlay() {
-        if (!this.minecraft.options.keyPlayerList.isDown() || !this.minecraft.isLocalServer()) {
+        if (!this.minecraft.options.keyPlayerList.isDown() || !this.minecraft.hasSingleplayerServer()) {
             return false;
         }
 

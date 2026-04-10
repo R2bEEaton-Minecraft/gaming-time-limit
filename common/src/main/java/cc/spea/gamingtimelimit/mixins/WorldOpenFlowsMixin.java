@@ -3,7 +3,9 @@ package cc.spea.gamingtimelimit.mixins;
 import cc.spea.gamingtimelimit.client.GamingTimeLimitClient;
 
 import net.minecraft.client.Minecraft;
+#if MC_VER != MC_1_20_1
 import net.minecraft.client.gui.screens.Screen;
+#endif
 import net.minecraft.client.gui.screens.worldselection.WorldOpenFlows;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.world.level.LevelSettings;
@@ -29,6 +31,20 @@ public abstract class WorldOpenFlowsMixin {
         }
     }
 
+#if MC_VER == MC_1_20_1
+    @Inject(method = "createFreshLevel", at = @At("HEAD"), cancellable = true)
+    private void gamingtimelimit$blockCreateFreshLevel(
+        String levelId,
+        LevelSettings levelSettings,
+        WorldOptions worldOptions,
+        Function<HolderLookup.Provider, WorldDimensions> dimensionsFactory,
+        CallbackInfo ci
+    ) {
+        if (!GamingTimeLimitClient.getInstance().beforeOpeningSingleplayer(this.minecraft, null)) {
+            ci.cancel();
+        }
+    }
+#else
     @Inject(method = "createFreshLevel", at = @At("HEAD"), cancellable = true)
     private void gamingtimelimit$blockCreateFreshLevel(
         String levelId,
@@ -42,4 +58,5 @@ public abstract class WorldOpenFlowsMixin {
             ci.cancel();
         }
     }
+#endif
 }

@@ -10,7 +10,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(Minecraft.class)
 public abstract class MinecraftMixin {
-    @Inject(method = "tick", at = @At("TAIL"))
+    @Inject(method = "runTick", at = @At("TAIL"), require = 0)
+    private void gamingtimelimit$runTick(boolean shouldTick, CallbackInfo ci) {
+        GamingTimeLimitClient.getInstance().tick((Minecraft) (Object) this);
+    }
+
+    @Inject(method = "tick", at = @At("TAIL"), require = 0)
     private void gamingtimelimit$tick(CallbackInfo ci) {
         GamingTimeLimitClient.getInstance().tick((Minecraft) (Object) this);
     }

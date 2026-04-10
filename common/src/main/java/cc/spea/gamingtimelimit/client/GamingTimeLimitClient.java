@@ -37,6 +37,8 @@ public final class GamingTimeLimitClient {
     private boolean dirty;
     private long lastSaveMillis = System.currentTimeMillis();
     private Screen lastReturnScreen;
+    private Screen pendingConfigParent;
+    private boolean pendingConfigOpen;
 
     private GamingTimeLimitClient() {
     }
@@ -54,6 +56,7 @@ public final class GamingTimeLimitClient {
         long elapsedMillis = Math.max(0L, now - this.lastTickMillis);
         this.lastTickMillis = now;
         this.captureReturnScreen(minecraft.screen);
+        this.flushPendingConfigScreen(minecraft);
 
         boolean inSession = this.isInTrackedSession(minecraft);
         boolean shouldCount = inSession && this.shouldCountCurrentTick(minecraft);
@@ -120,9 +123,30 @@ public final class GamingTimeLimitClient {
     }
 
     public void openConfigScreen(Screen parent) {
+        this.pendingConfigParent = parent;
+        this.pendingConfigOpen = true;
+    }
+
+    public void openConfigScreenNow(Screen parent) {
         Minecraft minecraft = Minecraft.getInstance();
         Screen previous = parent != null ? parent : minecraft.screen;
         minecraft.setScreen(new TimeLimitConfigScreen(previous));
+    }
+
+    public void pulsePausedScreen(Minecraft minecraft) {
+        if (minecraft == null || !minecraft.hasSingleplayerServer() || !minecraft.isPaused()) {
+            return;
+        }
+
+        this.tick(minecraft);
+    }
+
+    public void refreshTabFooterNow(Minecraft minecraft) {
+        if (minecraft == null) {
+            return;
+        }
+
+        this.refreshTabFooter(minecraft);
     }
 
     public DailyQuotaConfig getConfig() {
@@ -180,7 +204,10 @@ public final class GamingTimeLimitClient {
 
         this.exhaustedHandledThisSession = true;
         if (minecraft.getConnection() != null) {
-            minecraft.getConnection().getConnection().disconnect(Component.translatable("gamingtimelimit.kick.message"));
+            minecraft.getConnection().getConnection().disconnect(ClientText.tr(
+                "gamingtimelimit.kick.message",
+                "Your Minecraft play time for today has run out."
+            ));
         }
     }
 
@@ -235,10 +262,11 @@ public final class GamingTimeLimitClient {
 
     private Component createTabFooter() {
         TimeLimitState state = this.controller.getState();
-        MutableComponent footer = Component.translatable(
+        MutableComponent footer = ClientText.tr(
             "gamingtimelimit.tab.remaining",
+            "Time Remaining: %s",
             TimeFormatter.formatDuration(state.getRemainingMillis())
-        );
+        ).copy();
 
         return state.isExhausted() ? footer.withStyle(ChatFormatting.RED) : footer.withStyle(ChatFormatting.YELLOW);
     }
@@ -277,5 +305,21 @@ public final class GamingTimeLimitClient {
             && !simpleName.equals("ReceivingLevelScreen")
             && !simpleName.equals("GenericMessageScreen")
             && !simpleName.equals("GenericDirtMessageScreen");
+    }
+
+    private void flushPendingConfigScreen(Minecraft minecraft) {
+        if (!this.pendingConfigOpen) {
+            return;
+        }
+
+        if (minecraft.screen instanceof TimeLimitConfigScreen) {
+            this.pendingConfigOpen = false;
+            return;
+        }
+
+        Screen parent = this.pendingConfigParent;
+        this.pendingConfigParent = null;
+        this.pendingConfigOpen = false;
+        this.openConfigScreenNow(parent);
     }
 }

@@ -2,11 +2,22 @@ plugins {
     id 'minecraft'
 }
 
+def neoForgeRunJavaVersion = Integer.parseInt("${gradle.ext.java_version}")
+def neoForgeJavaLauncher = javaToolchains.launcherFor {
+    languageVersion = JavaLanguageVersion.of(neoForgeRunJavaVersion)
+}
+
 unimined.minecraft {
     neoForged {
         loader gradle.ext.neoforge_loader
         useToolchains = false // Disable toolchains so modern java can be used
     }
 }
-runClient.javaLauncher = null
-runServer.javaLauncher = null
+
+tasks.named("runClient").configure {
+    javaLauncher = neoForgeJavaLauncher
+}
+
+tasks.named("runServer").configure {
+    javaLauncher = neoForgeJavaLauncher
+}

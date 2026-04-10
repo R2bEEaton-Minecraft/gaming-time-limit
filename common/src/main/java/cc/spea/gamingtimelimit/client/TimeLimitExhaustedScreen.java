@@ -26,7 +26,7 @@ public final class TimeLimitExhaustedScreen extends Screen {
 #endif
 
     public TimeLimitExhaustedScreen(Screen parent) {
-        super(Component.translatable("gamingtimelimit.exhausted.title"));
+        super(ClientText.tr("gamingtimelimit.exhausted.title", "Daily Time Limit Reached"));
         this.parent = parent;
     }
 
@@ -38,18 +38,18 @@ public final class TimeLimitExhaustedScreen extends Screen {
         int rowY = this.height / 2 + 24;
 
         this.addRenderableWidget(
-            Button.builder(Component.translatable("gamingtimelimit.exhausted.button"), button -> GamingTimeLimitClient.getInstance().openConfigScreen(this))
+            Button.builder(ClientText.tr("gamingtimelimit.exhausted.button", "Open Settings"), button -> GamingTimeLimitClient.getInstance().openConfigScreen(this))
                 .bounds(left, rowY, buttonWidth, 20)
                 .build()
         );
         this.addRenderableWidget(
-            Button.builder(Component.translatable("gamingtimelimit.exhausted.back"), button -> this.goBack())
+            Button.builder(ClientText.tr("gamingtimelimit.exhausted.back", "Back"), button -> this.goBack())
                 .bounds(left, rowY + 24, buttonWidth, 20)
                 .build()
         );
 
 #if MC_VER == MC_26_1 || MC_VER == MC_26_1_1 || MC_VER == MC_26_1_2
-        this.message = MultiLineLabel.create(this.font, Component.translatable("gamingtimelimit.exhausted.message"), this.width - 50);
+        this.message = MultiLineLabel.create(this.font, ClientText.tr("gamingtimelimit.exhausted.message", "Your Minecraft play time for today has run out. Adjust your settings or wait until the next daily reset."), this.width - 50);
 #endif
     }
 
@@ -67,26 +67,23 @@ public final class TimeLimitExhaustedScreen extends Screen {
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
         super.extractRenderState(graphics, mouseX, mouseY, partialTick);
+        graphics.nextStratum();
         graphics.centeredText(this.font, this.title, this.width / 2, this.height / 2 - 54, 0xFFFFFF);
         this.message.visitLines(TextAlignment.CENTER, this.width / 2, this.height / 2 - 32, 9, graphics.textRenderer());
     }
 #else
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-#if MC_VER >= MC_1_21
-        this.renderBackground(graphics, mouseX, mouseY, partialTick);
-#else
 #if MC_VER == MC_1_20_1
         this.renderBackground(graphics);
 #else
-        this.renderBackground(graphics, mouseX, mouseY, partialTick);
+        // 1.21.11's screen wrapper already schedules the blurred background.
 #endif
-#endif
+        super.render(graphics, mouseX, mouseY, partialTick);
         this.drawStaticText(
             (text, x, y, color) -> graphics.drawString(this.font, text, x, y, color, false),
             (text, x, y, color) -> graphics.drawCenteredString(this.font, text, x, y, color)
         );
-        super.render(graphics, mouseX, mouseY, partialTick);
     }
 #endif
 
@@ -97,7 +94,7 @@ public final class TimeLimitExhaustedScreen extends Screen {
         int messageY = titleY + 22;
 
         titleDrawer.draw(this.title, centerX, titleY, 0xFFFFFF);
-        List<FormattedCharSequence> lines = this.font.split(Component.translatable("gamingtimelimit.exhausted.message"), TEXT_WIDTH);
+        List<FormattedCharSequence> lines = this.font.split(ClientText.tr("gamingtimelimit.exhausted.message", "Your Minecraft play time for today has run out. Adjust your settings or wait until the next daily reset."), TEXT_WIDTH);
         for (int i = 0; i < lines.size(); i++) {
             lineDrawer.draw(lines.get(i), textLeft, messageY + i * 10, 0xC0C0C0);
         }

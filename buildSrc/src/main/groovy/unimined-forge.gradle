@@ -2,12 +2,91 @@ plugins {
     id 'minecraft'
 }
 
+import org.gradle.internal.os.OperatingSystem
+
+def forgeNeedsZipfsShim = gradle.ext.minecraft_version == "1.21.11" || gradle.ext.minecraft_version.startsWith("26.")
+def forgeRunJavaVersion = gradle.ext.minecraft_version == "1.20.1" ? 17 : (forgeNeedsZipfsShim ? 25 : 21)
+def forgeJavaLauncher = javaToolchains.launcherFor {
+    languageVersion = JavaLanguageVersion.of(forgeRunJavaVersion)
+}
+def filteredForgeJvmArgs = forgeRunJavaVersion >= 25 ? [] : [
+    "--sun-misc-unsafe-memory-access=allow",
+    "-XX:+UseCompactObjectHeaders"
+]
+
 unimined.minecraft {
     forge {
         loader gradle.ext.forge_loader
         useToolchains = false // Disable toolchains so modern java can be used
         mixinConfig("${mod_id}.mixins.json") // <-- Mixin configuration, can be comma-separated for multiple
+        if (gradle.ext.minecraft_version == "1.20.1") {
+            mixinConfig("${mod_id}.forge.mixins.json")
+        }
     }
 }
-runClient.javaLauncher = null
-runServer.javaLauncher = null
+
+tasks.named("runClient").configure {
+    javaLauncher = forgeJavaLauncher
+    doFirst {
+        if (forgeNeedsZipfsShim) {
+            File javaHome = javaLauncher.get().metadata.installationPath.asFile
+            File jimageExecutable = new File(javaHome, "bin/${OperatingSystem.current().isWindows() ? 'jimage.exe' : 'jimage'}")
+            File modulesImage = new File(javaHome, "lib/modules")
+            File shimRoot = new File(project.buildDir, "zipfs-shim/${gradle.ext.minecraft_version}")
+            File shimDir = new File(shimRoot, "jdk.zipfs")
+            File marker = new File(shimDir, "jdk/nio/zipfs/ZipPath.class")
+            if (!marker.exists() && jimageExecutable.exists() && modulesImage.exists()) {
+                project.delete(shimRoot)
+                shimRoot.mkdirs()
+                def process = new ProcessBuilder(
+                    jimageExecutable.absolutePath,
+                    "extract",
+                    "--dir",
+                    shimRoot.absolutePath,
+                    modulesImage.absolutePath
+                ).inheritIO().start()
+                if (process.waitFor() != 0) {
+                    throw new GradleException("Failed to extract jdk.zipfs classes for Forge run task.")
+                }
+            }
+            if (marker.exists()) {
+                jvmArgs("-Xbootclasspath/a:${shimDir.absolutePath}")
+            }
+        }
+        setJvmArgs(jvmArgs.findAll { !filteredForgeJvmArgs.contains(it) })
+        jvmArgs("--add-modules=jdk.zipfs")
+    }
+}
+
+tasks.named("runServer").configure {
+    javaLauncher = forgeJavaLauncher
+    doFirst {
+        if (forgeNeedsZipfsShim) {
+            File javaHome = javaLauncher.get().metadata.installationPath.asFile
+            File jimageExecutable = new File(javaHome, "bin/${OperatingSystem.current().isWindows() ? 'jimage.exe' : 'jimage'}")
+            File modulesImage = new File(javaHome, "lib/modules")
+            File shimRoot = new File(project.buildDir, "zipfs-shim/${gradle.ext.minecraft_version}")
+            File shimDir = new File(shimRoot, "jdk.zipfs")
+            File marker = new File(shimDir, "jdk/nio/zipfs/ZipPath.class")
+            if (!marker.exists() && jimageExecutable.exists() && modulesImage.exists()) {
+                project.delete(shimRoot)
+                shimRoot.mkdirs()
+                def process = new ProcessBuilder(
+                    jimageExecutable.absolutePath,
+                    "extract",
+                    "--dir",
+                    shimRoot.absolutePath,
+                    modulesImage.absolutePath
+                ).inheritIO().start()
+                if (process.waitFor() != 0) {
+                    throw new GradleException("Failed to extract jdk.zipfs classes for Forge run task.")
+                }
+            }
+            if (marker.exists()) {
+                jvmArgs("-Xbootclasspath/a:${shimDir.absolutePath}")
+            }
+        }
+        setJvmArgs(jvmArgs.findAll { !filteredForgeJvmArgs.contains(it) })
+        jvmArgs("--add-modules=jdk.zipfs")
+    }
+}

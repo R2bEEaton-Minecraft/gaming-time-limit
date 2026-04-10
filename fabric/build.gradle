@@ -1,3 +1,5 @@
+import groovy.xml.XmlSlurper
+
 plugins {
     id 'unimined-fabric'
 }
@@ -7,10 +9,50 @@ repositories {
     maven { url = "https://api.modrinth.com/maven" }
 }
 
+def resolveFabricApiModuleVersion = { String moduleName ->
+    def pomConfiguration = configurations.detachedConfiguration(
+        dependencies.create("net.fabricmc.fabric-api:fabric-api:${gradle.ext.fabric_api_version}@pom")
+    )
+    pomConfiguration.transitive = false
+
+    def pomFile = pomConfiguration.resolve().find { it.name.endsWith(".pom") }
+    if (pomFile == null) {
+        throw new GradleException("Could not resolve Fabric API pom for ${gradle.ext.fabric_api_version}")
+    }
+
+    def pom = new XmlSlurper().parse(pomFile)
+    def module = pom.dependencies.dependency.find { it.artifactId.text() == moduleName }
+    if (module != null) {
+        def version = module.version.text()
+        if (version) {
+            return version
+        }
+    }
+
+    def metadataUrl = "https://maven.fabricmc.net/net/fabricmc/fabric-api/${moduleName}/maven-metadata.xml"
+    def metadata = new XmlSlurper().parse(metadataUrl)
+    def version = metadata.versioning.release.text()
+    if (version) {
+        return version
+    }
+
+    throw new GradleException("Could not resolve ${moduleName} for Fabric API ${gradle.ext.fabric_api_version}")
+}
+
 dependencies {
-    modImplementation "net.fabricmc.fabric-api:fabric-api:${gradle.ext.fabric_api_version}"
+    def fabricCommandApiVersion = resolveFabricApiModuleVersion("fabric-command-api-v2")
+    modImplementation "net.fabricmc.fabric-api:fabric-command-api-v2:${fabricCommandApiVersion}"
 
     if ((gradle.ext.has("modmenu_enabled") ? gradle.ext.modmenu_enabled : "false").toBoolean()) {
+        [
+            "fabric-resource-loader-v0",
+            "fabric-screen-api-v1",
+            "fabric-key-binding-api-v1",
+            "fabric-lifecycle-events-v1"
+        ].each { moduleName ->
+            def moduleVersion = resolveFabricApiModuleVersion(moduleName)
+            modImplementation "net.fabricmc.fabric-api:${moduleName}:${moduleVersion}"
+        }
         modImplementation "com.terraformersmc:modmenu:${gradle.ext.modmenu_version}"
     }
 }

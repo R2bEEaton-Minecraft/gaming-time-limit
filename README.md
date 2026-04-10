@@ -56,10 +56,6 @@ Support is driven by the files in [`versionProperties`](versionProperties).
 Current targets in this repo:
 
 - `1.20.1`: Fabric, Forge
-- `1.20.4`: Fabric, Forge, NeoForge
-- `1.21`: Fabric, Forge, NeoForge
-- `1.21.1`: Fabric, Forge, NeoForge
-- `1.21.4`: Fabric, Forge, NeoForge
 - `1.21.11`: Fabric, Forge, NeoForge
 - `26.1`: Fabric, Forge
 - `26.1.1`: Fabric, Forge
@@ -73,23 +69,23 @@ Examples:
 
 ```bash
 ./gradlew :fabric:assemble -Pmc_ver=26.1.2
-./gradlew :forge:assemble -Pmc_ver=1.21.4
-./gradlew :neoforge:assemble -Pmc_ver=1.21.4
+./gradlew :forge:assemble -Pmc_ver=1.20.1
+./gradlew :neoforge:assemble -Pmc_ver=1.21.11
 ```
 
 On Windows:
 
 ```powershell
 .\gradlew.bat :fabric:assemble "-Pmc_ver=26.1.2"
-.\gradlew.bat :forge:assemble "-Pmc_ver=1.21.4"
-.\gradlew.bat :neoforge:assemble "-Pmc_ver=1.21.4"
+.\gradlew.bat :forge:assemble "-Pmc_ver=1.20.1"
+.\gradlew.bat :neoforge:assemble "-Pmc_ver=1.21.11"
 ```
 
 Useful dev commands:
 
 ```powershell
 .\gradlew.bat :fabric:runClient "-Pmc_ver=26.1.2"
-.\gradlew.bat :common:test "-Pmc_ver=1.21.4"
+.\gradlew.bat :common:test "-Pmc_ver=1.20.1"
 ```
 
 Notes:

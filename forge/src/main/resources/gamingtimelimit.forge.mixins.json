@@ -1,0 +1,11 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "cc.spea.gamingtimelimit.forge.mixins",
+  "compatibilityLevel": "JAVA_${java_version}",
+  "mixins": [],
+  "client": [
+    "ForgeClientPacketListenerMixin",
+    "ForgeGuiMixin"
+  ]
+}

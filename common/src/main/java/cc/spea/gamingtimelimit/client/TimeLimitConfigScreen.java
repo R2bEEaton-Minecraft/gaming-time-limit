@@ -20,6 +20,7 @@ import net.minecraft.client.gui.GuiGraphics;
 public final class TimeLimitConfigScreen extends Screen {
     private final Screen parent;
 
+    private Button remainingTimeButton;
     private EditBox minutesBox;
     private CycleButton<Boolean> autoKickButton;
     private CycleButton<Boolean> pausedSingleplayerButton;
@@ -30,7 +31,7 @@ public final class TimeLimitConfigScreen extends Screen {
     private boolean minutesValid = true;
 
     public TimeLimitConfigScreen(Screen parent) {
-        super(Component.translatable("gamingtimelimit.screen.title"));
+        super(ClientText.tr("gamingtimelimit.screen.title", "Gaming Time Limit"));
         this.parent = parent;
     }
 
@@ -43,28 +44,37 @@ public final class TimeLimitConfigScreen extends Screen {
 
         int centerX = this.width / 2;
         int left = centerX - 100;
-        int rowY = this.height / 4 + 20;
+        int rowY = this.height / 4 + 4;
 
-        this.minutesBox = this.addRenderableWidget(new EditBox(this.font, left, rowY, 200, 20, Component.translatable("gamingtimelimit.option.daily_minutes")));
+        this.remainingTimeButton = this.addRenderableWidget(
+            Button.builder(Component.empty(), button -> {})
+                .bounds(left, rowY, 200, 20)
+                .build()
+        );
+        this.remainingTimeButton.active = false;
+        this.updateRemainingTimeButton();
+        rowY += 32;
+
+        this.minutesBox = this.addRenderableWidget(new EditBox(this.font, left, rowY, 200, 20, ClientText.tr("gamingtimelimit.option.daily_minutes", "Daily Limit (Minutes)")));
         this.minutesBox.setValue(this.minutesValue);
         this.minutesBox.setResponder(this::onMinutesChanged);
         rowY += 28;
 
         this.autoKickButton = this.addRenderableWidget(
             CycleButton.onOffBuilder(this.autoKick)
-                .create(left, rowY, 200, 20, Component.translatable("gamingtimelimit.option.auto_kick"), (button, value) -> this.autoKick = value)
+                .create(left, rowY, 200, 20, ClientText.tr("gamingtimelimit.option.auto_kick", "Kick Automatically At Zero"), (button, value) -> this.autoKick = value)
         );
         rowY += 28;
 
         this.pausedSingleplayerButton = this.addRenderableWidget(
             CycleButton.onOffBuilder(this.countWhilePausedSingleplayer)
-                .create(left, rowY, 200, 20, Component.translatable("gamingtimelimit.option.paused_singleplayer"), (button, value) -> this.countWhilePausedSingleplayer = value)
+                .create(left, rowY, 200, 20, ClientText.tr("gamingtimelimit.option.paused_singleplayer", "Count While Singleplayer Is Paused"), (button, value) -> this.countWhilePausedSingleplayer = value)
         );
         rowY += 36;
 
-        this.saveButton = this.addRenderableWidget(Button.builder(Component.translatable("gamingtimelimit.screen.save"), button -> this.saveAndClose()).bounds(left, rowY, 64, 20).build());
-        this.addRenderableWidget(Button.builder(Component.translatable("gamingtimelimit.screen.cancel"), button -> this.onClose()).bounds(left + 68, rowY, 64, 20).build());
-        this.addRenderableWidget(Button.builder(Component.translatable("gamingtimelimit.screen.defaults"), button -> this.restoreDefaults()).bounds(left + 136, rowY, 64, 20).build());
+        this.saveButton = this.addRenderableWidget(Button.builder(ClientText.tr("gamingtimelimit.screen.save", "Save"), button -> this.saveAndClose()).bounds(left, rowY, 64, 20).build());
+        this.addRenderableWidget(Button.builder(ClientText.tr("gamingtimelimit.screen.cancel", "Cancel"), button -> this.onClose()).bounds(left + 68, rowY, 64, 20).build());
+        this.addRenderableWidget(Button.builder(ClientText.tr("gamingtimelimit.screen.defaults", "Defaults"), button -> this.restoreDefaults()).bounds(left + 136, rowY, 64, 20).build());
 
         this.setInitialFocus(this.minutesBox);
         this.updateSaveState();
@@ -80,12 +90,14 @@ public final class TimeLimitConfigScreen extends Screen {
 #if MC_VER == MC_26_1 || MC_VER == MC_26_1_1 || MC_VER == MC_26_1_2
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
-        this.drawStaticText(graphics);
+        GamingTimeLimitClient.getInstance().pulsePausedScreen(this.minecraft);
+        this.updateRemainingTimeButton();
         super.extractRenderState(graphics, mouseX, mouseY, partialTick);
+        graphics.nextStratum();
+        this.drawStaticText(graphics);
     }
 
     private void drawStaticText(GuiGraphicsExtractor graphics) {
-        TimeLimitState state = GamingTimeLimitClient.getInstance().getState();
         int centerX = this.width / 2;
         int left = centerX - 100;
         int textColor = 0xFFFFFF;
@@ -93,31 +105,28 @@ public final class TimeLimitConfigScreen extends Screen {
         int alertColor = 0xFF5555;
 
         graphics.centeredText(this.font, this.title, centerX, this.height / 4 - 28, textColor);
-        graphics.text(this.font, Component.translatable("gamingtimelimit.screen.remaining", TimeFormatter.formatDuration(state.getRemainingMillis())), left, this.height / 4 - 6, state.isExhausted() ? alertColor : textColor);
-        graphics.text(this.font, Component.translatable("gamingtimelimit.option.daily_minutes"), left, this.minutesBox.getY() - 10, subtextColor);
+        graphics.text(this.font, ClientText.tr("gamingtimelimit.option.daily_minutes", "Daily Limit (Minutes)"), left, this.minutesBox.getY() - 10, subtextColor);
 
         if (!this.minutesValid) {
-            graphics.text(this.font, Component.translatable("gamingtimelimit.error.minutes").withStyle(ChatFormatting.RED), left, this.minutesBox.getY() + 24, alertColor);
+            graphics.text(this.font, ClientText.tr("gamingtimelimit.error.minutes", "Enter a whole number from 0 to 1440.").withStyle(ChatFormatting.RED), left, this.minutesBox.getY() + 24, alertColor);
         }
     }
 #else
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-#if MC_VER >= MC_1_21
-        this.renderBackground(graphics, mouseX, mouseY, partialTick);
-#else
+        GamingTimeLimitClient.getInstance().pulsePausedScreen(this.minecraft);
+        this.updateRemainingTimeButton();
 #if MC_VER == MC_1_20_1
         this.renderBackground(graphics);
 #else
-        this.renderBackground(graphics, mouseX, mouseY, partialTick);
+        // 1.21.11's screen wrapper already schedules the blurred background.
+        // Rendering it again here trips the once-per-frame blur guard.
 #endif
-#endif
-        this.drawStaticText(graphics);
         super.render(graphics, mouseX, mouseY, partialTick);
+        this.drawStaticText(graphics);
     }
 
     private void drawStaticText(GuiGraphics graphics) {
-        TimeLimitState state = GamingTimeLimitClient.getInstance().getState();
         int centerX = this.width / 2;
         int left = centerX - 100;
         int textColor = 0xFFFFFF;
@@ -125,11 +134,10 @@ public final class TimeLimitConfigScreen extends Screen {
         int alertColor = 0xFF5555;
 
         graphics.drawCenteredString(this.font, this.title, centerX, this.height / 4 - 28, textColor);
-        graphics.drawString(this.font, Component.translatable("gamingtimelimit.screen.remaining", TimeFormatter.formatDuration(state.getRemainingMillis())), left, this.height / 4 - 6, state.isExhausted() ? alertColor : textColor, false);
-        graphics.drawString(this.font, Component.translatable("gamingtimelimit.option.daily_minutes"), left, this.minutesBox.getY() - 10, subtextColor, false);
+        graphics.drawString(this.font, ClientText.tr("gamingtimelimit.option.daily_minutes", "Daily Limit (Minutes)"), left, this.minutesBox.getY() - 10, subtextColor, false);
 
         if (!this.minutesValid) {
-            graphics.drawString(this.font, Component.translatable("gamingtimelimit.error.minutes").withStyle(ChatFormatting.RED), left, this.minutesBox.getY() + 24, alertColor, false);
+            graphics.drawString(this.font, ClientText.tr("gamingtimelimit.error.minutes", "Enter a whole number from 0 to 1440.").withStyle(ChatFormatting.RED), left, this.minutesBox.getY() + 24, alertColor, false);
         }
     }
 #endif
@@ -181,5 +189,19 @@ public final class TimeLimitConfigScreen extends Screen {
         if (this.saveButton != null) {
             this.saveButton.active = this.minutesValid;
         }
+    }
+
+    private void updateRemainingTimeButton() {
+        if (this.remainingTimeButton == null) {
+            return;
+        }
+
+        TimeLimitState state = GamingTimeLimitClient.getInstance().getState();
+        Component message = ClientText.tr(
+            "gamingtimelimit.screen.remaining",
+            "Remaining Today: %s",
+            TimeFormatter.formatDuration(state.getRemainingMillis())
+        );
+        this.remainingTimeButton.setMessage(state.isExhausted() ? message.copy().withStyle(ChatFormatting.RED) : message);
     }
 }

@@ -1,6 +1,6 @@
 package cc.spea.gamingtimelimit;
 
-#if MC_VER != MC_26_1_2
+#if MC_VER != MC_1_21_11 && MC_VER != MC_26_1 && MC_VER != MC_26_1_1 && MC_VER != MC_26_1_2
 import cc.spea.gamingtimelimit.client.GamingTimeLimitClient;
 import cc.spea.gamingtimelimit.client.TimeLimitConfigScreen;
 
