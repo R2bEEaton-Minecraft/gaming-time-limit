@@ -5,14 +5,216 @@ plugins {
 import org.gradle.internal.os.OperatingSystem
 
 def forgeNeedsZipfsShim = gradle.ext.minecraft_version == "1.21.11" || gradle.ext.minecraft_version.startsWith("26.")
+def forgeNeedsDirectArgFileLaunch = gradle.ext.minecraft_version != "1.20.1"
+def forgeNeedsSecureJarHandler = gradle.ext.minecraft_version.startsWith("26.")
+def forgeNeedsCustomEarlyWindowProvider = gradle.ext.minecraft_version == "1.21.11" || gradle.ext.minecraft_version.startsWith("26.")
 def forgeRunJavaVersion = gradle.ext.minecraft_version == "1.20.1" ? 17 : (forgeNeedsZipfsShim ? 25 : 21)
 def forgeJavaLauncher = javaToolchains.launcherFor {
     languageVersion = JavaLanguageVersion.of(forgeRunJavaVersion)
+}
+def secureJarHandlerVersion = gradle.ext.minecraft_version.startsWith("26.") ? "3.0.8" : "2.1.24"
+def secureJarHandlerFiles = configurations.detachedConfiguration(
+    dependencies.create("cpw.mods:securejarhandler:${secureJarHandlerVersion}")
+)
+def escapeArgFileArgument = { String argument ->
+    if (argument == null) {
+        return '""'
+    }
+
+    String escaped = argument.replace('"', '\\"')
+    boolean needsQuoting = escaped.isEmpty()
+    if (!needsQuoting) {
+        for (int i = 0; i < escaped.length(); i++) {
+            char ch = escaped.charAt(i)
+            if (Character.isWhitespace(ch) || ch == '#') {
+                needsQuoting = true
+                break
+            }
+        }
+    }
+    if (needsQuoting) {
+        return "\"${escaped}\""
+    }
+    return escaped
 }
 def filteredForgeJvmArgs = forgeRunJavaVersion >= 25 ? [] : [
     "--sun-misc-unsafe-memory-access=allow",
     "-XX:+UseCompactObjectHeaders"
 ]
+def createForgeEarlyWindowProviderModule = { task ->
+    if (!forgeNeedsCustomEarlyWindowProvider) {
+        return null
+    }
+
+    File fmlloaderJar = task.classpath.files.find { it.name.startsWith("fmlloader-") }
+    if (fmlloaderJar == null) {
+        throw new GradleException("Could not locate fmlloader jar for Forge early window provider module.")
+    }
+
+    File providerClass = new File(project.sourceSets.main.output.classesDirs.singleFile, "cc/spea/gamingtimelimit/forge/ForgeNoVizWindowProvider.class")
+    if (!providerClass.exists()) {
+        throw new GradleException("ForgeNoVizWindowProvider.class was not compiled before runClient.")
+    }
+
+    File moduleRoot = new File(project.buildDir, "tmp/forge-run/window-provider/${gradle.ext.minecraft_version}")
+    File compileDir = new File(moduleRoot, "compiled")
+    File sourcesDir = new File(moduleRoot, "src")
+    File helperJar = new File(moduleRoot, "gamingtimelimit-forge-window-provider.jar")
+    File javaHome = task.javaLauncher.get().metadata.installationPath.asFile
+    File javacExecutable = new File(javaHome, "bin/${OperatingSystem.current().isWindows() ? 'javac.exe' : 'javac'}")
+    File jarExecutable = new File(javaHome, "bin/${OperatingSystem.current().isWindows() ? 'jar.exe' : 'jar'}")
+
+    project.delete(moduleRoot)
+    compileDir.mkdirs()
+    sourcesDir.mkdirs()
+
+    File moduleInfoSource = new File(sourcesDir, "module-info.java")
+    moduleInfoSource.text = """module cc.spea.gamingtimelimit.forge.windowprovider {
+    requires net.minecraftforge.fmlloader;
+    provides net.minecraftforge.fml.loading.ImmediateWindowProvider with cc.spea.gamingtimelimit.forge.ForgeNoVizWindowProvider;
+}
+""".stripIndent()
+
+    List<String> compileCommand = [
+        javacExecutable.absolutePath,
+        "--module-path", fmlloaderJar.absolutePath,
+        "--patch-module", "cc.spea.gamingtimelimit.forge.windowprovider=${project.sourceSets.main.output.classesDirs.asPath}",
+        "-d", compileDir.absolutePath,
+        moduleInfoSource.absolutePath
+    ].collect { it.toString() }
+    def compileProcess = new ProcessBuilder(compileCommand)
+        .directory(project.projectDir)
+        .inheritIO()
+        .start()
+    if (compileProcess.waitFor() != 0) {
+        throw new GradleException("Failed to compile module-info.java for the Forge early window provider module.")
+    }
+
+    List<String> jarCommand = [
+        jarExecutable.absolutePath,
+        "--create",
+        "--file", helperJar.absolutePath,
+        "-C", project.sourceSets.main.output.classesDirs.singleFile.absolutePath, "cc/spea/gamingtimelimit/forge/ForgeNoVizWindowProvider.class",
+        "-C", compileDir.absolutePath, "module-info.class"
+    ].collect { it.toString() }
+    def jarProcess = new ProcessBuilder(jarCommand)
+        .directory(project.projectDir)
+        .inheritIO()
+        .start()
+    if (jarProcess.waitFor() != 0) {
+        throw new GradleException("Failed to package the Forge early window provider module jar.")
+    }
+
+    return helperJar
+}
+def createPatchedForgeEarlyDisplayJar = { task ->
+    if (!forgeNeedsCustomEarlyWindowProvider) {
+        return null
+    }
+
+    File earlyDisplayJar = task.classpath.files.find { it.name.startsWith("fmlearlydisplay-") }
+    if (earlyDisplayJar == null) {
+        throw new GradleException("Could not locate fmlearlydisplay jar for Forge early window patching.")
+    }
+
+    File providerClass = new File(project.sourceSets.main.output.classesDirs.singleFile, "cc/spea/gamingtimelimit/forge/ForgeNoVizWindowProvider.class")
+    if (!providerClass.exists()) {
+        throw new GradleException("ForgeNoVizWindowProvider.class was not compiled before runClient.")
+    }
+
+    File patchRoot = new File(project.buildDir, "tmp/forge-run/earlydisplay/${gradle.ext.minecraft_version}")
+    File explodedDir = new File(patchRoot, "exploded")
+    File patchedJar = new File(patchRoot, earlyDisplayJar.name.replace(".jar", "-gamingtimelimit.jar"))
+    File serviceFile = new File(explodedDir, "META-INF/services/net.minecraftforge.fml.loading.ImmediateWindowProvider")
+    File providerTarget = new File(explodedDir, "cc/spea/gamingtimelimit/forge/ForgeNoVizWindowProvider.class")
+
+    project.delete(patchRoot)
+    explodedDir.mkdirs()
+
+    project.copy {
+        from(project.zipTree(earlyDisplayJar))
+        into(explodedDir)
+    }
+
+    providerTarget.parentFile.mkdirs()
+    project.copy {
+        from(providerClass)
+        into(providerTarget.parentFile)
+    }
+
+    serviceFile.parentFile.mkdirs()
+    serviceFile.setText(
+        "net.minecraftforge.fml.earlydisplay.DisplayWindow${System.lineSeparator()}cc.spea.gamingtimelimit.forge.ForgeNoVizWindowProvider${System.lineSeparator()}",
+        "UTF-8"
+    )
+
+    project.ant.zip(destfile: patchedJar) {
+        zipfileset(dir: explodedDir)
+    }
+
+    return [originalJar: earlyDisplayJar, patchedJar: patchedJar]
+}
+def createForgeDevModJar = { task ->
+    if (!forgeNeedsDirectArgFileLaunch) {
+        return null
+    }
+
+    File jarRoot = new File(project.buildDir, "tmp/forge-run/devmod/${gradle.ext.minecraft_version}")
+    File devModJar = new File(jarRoot, "gamingtimelimit-devmod.jar")
+    File classesDir = project.sourceSets.main.output.classesDirs.singleFile
+    File resourcesDir = project.sourceSets.main.output.resourcesDir
+
+    project.delete(jarRoot)
+    jarRoot.mkdirs()
+
+    project.ant.jar(destfile: devModJar) {
+        fileset(dir: classesDir)
+        if (resourcesDir != null && resourcesDir.exists()) {
+            fileset(dir: resourcesDir)
+        }
+    }
+
+    return devModJar
+}
+def configureForgeEarlyWindow = { File workingDir ->
+    if (!forgeNeedsCustomEarlyWindowProvider || workingDir == null) {
+        return
+    }
+
+    File configDir = new File(workingDir, "config")
+    File fmlConfig = new File(configDir, "fml.toml")
+    configDir.mkdirs()
+
+    List<String> lines = fmlConfig.exists()
+        ? fmlConfig.readLines("UTF-8")
+        : []
+
+    boolean updated = false
+    for (int i = 0; i < lines.size(); i++) {
+        if (lines[i] ==~ /\s*earlyWindowControl\s*=.*/) {
+            lines[i] = "earlyWindowControl = true"
+            updated = true
+            continue
+        }
+        if (lines[i] ==~ /\s*earlyWindowProvider\s*=.*/) {
+            lines[i] = "earlyWindowProvider = \"gamingtimelimit_noviz\""
+            updated = true
+        }
+    }
+
+    if (!updated || !lines.any { it ==~ /\s*earlyWindowControl\s*=.*/ }) {
+        if (!lines.isEmpty() && lines[-1].trim()) {
+            lines.add("")
+        }
+        lines.add("# Use the mod's no-visual provider for dev runs on versions where Forge's bundled providers break before the main window opens.")
+        lines.add("earlyWindowControl = true")
+    }
+    if (!lines.any { it ==~ /\s*earlyWindowProvider\s*=.*/ }) {
+        lines.add("earlyWindowProvider = \"gamingtimelimit_noviz\"")
+    }
+
+    fmlConfig.setText(lines.join(System.lineSeparator()) + System.lineSeparator(), "UTF-8")
+}
 
 unimined.minecraft {
     forge {
@@ -28,6 +230,31 @@ unimined.minecraft {
 tasks.named("runClient").configure {
     javaLauncher = forgeJavaLauncher
     doFirst {
+        configureForgeEarlyWindow(getWorkingDir())
+        def launchClasspath = classpath
+        if (forgeNeedsDirectArgFileLaunch) {
+            File devModJar = createForgeDevModJar(delegate)
+            if (devModJar != null) {
+                launchClasspath = launchClasspath.minus(project.files(project.sourceSets.main.output.classesDirs, project.sourceSets.main.output.resourcesDir))
+                launchClasspath = project.files(devModJar).plus(launchClasspath)
+            }
+        }
+        if (forgeNeedsCustomEarlyWindowProvider) {
+            if (project.sourceSets.main.output.resourcesDir != null) {
+                project.delete(new File(project.sourceSets.main.output.resourcesDir, "META-INF/services/net.minecraftforge.fml.loading.ImmediateWindowProvider"))
+            }
+            def patchedEarlyDisplay = createPatchedForgeEarlyDisplayJar(delegate)
+            if (patchedEarlyDisplay != null) {
+                launchClasspath = launchClasspath.minus(project.files(patchedEarlyDisplay.originalJar))
+                launchClasspath = project.files(patchedEarlyDisplay.patchedJar).plus(launchClasspath)
+            }
+        }
+        if (forgeNeedsSecureJarHandler) {
+            launchClasspath = launchClasspath.plus(project.files(secureJarHandlerFiles.resolve()))
+        }
+        classpath = launchClasspath
+        String legacyClassPath = classpath.asPath
+        jvmArgs("-DlegacyClassPath=${legacyClassPath}")
         if (forgeNeedsZipfsShim) {
             File javaHome = javaLauncher.get().metadata.installationPath.asFile
             File jimageExecutable = new File(javaHome, "bin/${OperatingSystem.current().isWindows() ? 'jimage.exe' : 'jimage'}")
@@ -55,12 +282,65 @@ tasks.named("runClient").configure {
         }
         setJvmArgs(jvmArgs.findAll { !filteredForgeJvmArgs.contains(it) })
         jvmArgs("--add-modules=jdk.zipfs")
+
+        if (forgeNeedsDirectArgFileLaunch) {
+            Class<?> runConfigClass = delegate.getClass()
+            while (runConfigClass != null && runConfigClass.name != "xyz.wagyourtail.unimined.api.runs.RunConfig") {
+                runConfigClass = runConfigClass.superclass
+            }
+            if (runConfigClass == null) {
+                throw new GradleException("Could not resolve Unimined RunConfig class for direct Forge launch.")
+            }
+
+            def applyAllMethod = runConfigClass.getDeclaredMethod("applyAll")
+            applyAllMethod.accessible = true
+            applyAllMethod.invoke(delegate)
+
+            File argFile = new File(project.buildDir, "tmp/forge-run/${name}-${gradle.ext.minecraft_version}.args")
+            argFile.parentFile.mkdirs()
+
+            List<String> argLines = []
+            argLines.addAll(allJvmArgs.collect(escapeArgFileArgument))
+            argLines.add("-cp")
+            argLines.add(escapeArgFileArgument(classpath.asPath))
+            argLines.add(escapeArgFileArgument(mainClass.get()))
+            argLines.addAll(args.collect(escapeArgFileArgument))
+            argFile.text = argLines.join(System.lineSeparator()) + System.lineSeparator()
+
+            def process = new ProcessBuilder(
+                javaLauncher.get().executablePath.asFile.absolutePath,
+                "@${argFile.absolutePath}"
+            )
+            process.directory(getWorkingDir())
+            File logFile = new File(project.buildDir, "tmp/forge-run/${name}-${gradle.ext.minecraft_version}.log")
+            logFile.parentFile.mkdirs()
+            process.redirectErrorStream(true)
+            process.redirectOutput(ProcessBuilder.Redirect.appendTo(logFile))
+            Map<String, String> processEnvironment = process.environment()
+            environment.each { key, value ->
+                processEnvironment.put(key.toString(), value.toString())
+            }
+            logger.lifecycle("Direct Forge runClient output: ${project.relativePath(logFile)}")
+            def running = process.start()
+            int exitCode = running.waitFor()
+            if (exitCode != 0) {
+                throw new GradleException("Direct Forge argfile launch failed with exit code ${exitCode}. See ${project.relativePath(logFile)}")
+            }
+
+            throw new org.gradle.api.tasks.StopExecutionException("Executed Forge runClient via direct argfile launch.")
+        }
     }
 }
 
 tasks.named("runServer").configure {
     javaLauncher = forgeJavaLauncher
     doFirst {
+        configureForgeEarlyWindow(getWorkingDir())
+        if (forgeNeedsSecureJarHandler) {
+            classpath = classpath.plus(project.files(secureJarHandlerFiles.resolve()))
+        }
+        String legacyClassPath = classpath.asPath
+        jvmArgs("-DlegacyClassPath=${legacyClassPath}")
         if (forgeNeedsZipfsShim) {
             File javaHome = javaLauncher.get().metadata.installationPath.asFile
             File jimageExecutable = new File(javaHome, "bin/${OperatingSystem.current().isWindows() ? 'jimage.exe' : 'jimage'}")

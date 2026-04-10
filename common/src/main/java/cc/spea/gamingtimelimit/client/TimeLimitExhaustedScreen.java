@@ -1,7 +1,7 @@
 package cc.spea.gamingtimelimit.client;
 
 import net.minecraft.client.gui.components.Button;
-#if MC_VER == MC_26_1 || MC_VER == MC_26_1_1 || MC_VER == MC_26_1_2
+#if MC_VER > MC_1_21_11
 import net.minecraft.client.gui.components.MultiLineLabel;
 import net.minecraft.client.gui.TextAlignment;
 #endif
@@ -9,7 +9,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 
-#if MC_VER == MC_26_1 || MC_VER == MC_26_1_1 || MC_VER == MC_26_1_2
+#if MC_VER > MC_1_21_11
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 #else
 import net.minecraft.client.gui.GuiGraphics;
@@ -21,7 +21,7 @@ public final class TimeLimitExhaustedScreen extends Screen {
     private static final int TEXT_WIDTH = 240;
 
     private final Screen parent;
-#if MC_VER == MC_26_1 || MC_VER == MC_26_1_1 || MC_VER == MC_26_1_2
+#if MC_VER > MC_1_21_11
     private MultiLineLabel message = MultiLineLabel.EMPTY;
 #endif
 
@@ -48,7 +48,7 @@ public final class TimeLimitExhaustedScreen extends Screen {
                 .build()
         );
 
-#if MC_VER == MC_26_1 || MC_VER == MC_26_1_1 || MC_VER == MC_26_1_2
+#if MC_VER > MC_1_21_11
         this.message = MultiLineLabel.create(this.font, ClientText.tr("gamingtimelimit.exhausted.message", "Your Minecraft play time for today has run out. Adjust your settings or wait until the next daily reset."), this.width - 50);
 #endif
     }
@@ -63,7 +63,7 @@ public final class TimeLimitExhaustedScreen extends Screen {
         return true;
     }
 
-#if MC_VER == MC_26_1 || MC_VER == MC_26_1_1 || MC_VER == MC_26_1_2
+#if MC_VER > MC_1_21_11
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
         super.extractRenderState(graphics, mouseX, mouseY, partialTick);

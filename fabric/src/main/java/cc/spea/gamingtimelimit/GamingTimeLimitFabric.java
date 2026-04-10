@@ -3,7 +3,7 @@ package cc.spea.gamingtimelimit;
 import cc.spea.gamingtimelimit.client.GamingTimeLimitClient;
 
 import net.fabricmc.api.ClientModInitializer;
-#if MC_VER == MC_26_1 || MC_VER == MC_26_1_1 || MC_VER == MC_26_1_2
+#if MC_VER > MC_1_21_11
 import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
 #else
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
@@ -15,7 +15,7 @@ public final class GamingTimeLimitFabric implements ClientModInitializer {
     public void onInitializeClient() {
         GamingTimeLimitClient.getInstance().init();
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
-#if MC_VER == MC_26_1 || MC_VER == MC_26_1_1 || MC_VER == MC_26_1_2
+#if MC_VER > MC_1_21_11
             dispatcher.register(ClientCommands.literal("gamingtimelimit").executes(context -> openConfigScreen()));
             dispatcher.register(ClientCommands.literal("gtl").executes(context -> openConfigScreen()));
 #else

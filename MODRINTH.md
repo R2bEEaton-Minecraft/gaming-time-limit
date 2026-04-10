@@ -46,6 +46,6 @@ Open the settings screen with:
 
 ## Supported Loaders
 
-- Fabric
-- Forge
-- NeoForge
+- Fabric on all supported versions
+- Forge on `1.20.1`
+- NeoForge on `1.21.11`

@@ -2,7 +2,7 @@ package cc.spea.gamingtimelimit.mixins;
 
 import cc.spea.gamingtimelimit.client.GamingTimeLimitClient;
 
-#if MC_VER == MC_26_1 || MC_VER == MC_26_1_1 || MC_VER == MC_26_1_2
+#if MC_VER > MC_1_21_11
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;

@@ -11,7 +11,7 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
-#if MC_VER == MC_26_1 || MC_VER == MC_26_1_1 || MC_VER == MC_26_1_2
+#if MC_VER > MC_1_21_11
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 #else
 import net.minecraft.client.gui.GuiGraphics;
@@ -87,7 +87,7 @@ public final class TimeLimitConfigScreen extends Screen {
         }
     }
 
-#if MC_VER == MC_26_1 || MC_VER == MC_26_1_1 || MC_VER == MC_26_1_2
+#if MC_VER > MC_1_21_11
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
         GamingTimeLimitClient.getInstance().pulsePausedScreen(this.minecraft);

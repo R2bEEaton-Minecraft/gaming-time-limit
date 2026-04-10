@@ -4,7 +4,7 @@
 
 Client-side Minecraft mod that gives you a daily play budget and counts it down while you are actually in-game. When your time runs out, it can either kick you automatically or just keep showing `00:00` while you continue playing.
 
-This project targets Fabric, Forge, and NeoForge from one shared codebase.
+This project targets Fabric, plus selected Forge and NeoForge versions, from one shared codebase.
 
 ## What It Does
 
@@ -56,9 +56,9 @@ Support is driven by the files in [`versionProperties`](versionProperties).
 Current targets in this repo:
 
 - `1.20.1`: Fabric, Forge
-- `1.21.11`: Fabric, Forge, NeoForge
-- `26.1`: Fabric, Forge
-- `26.1.1`: Fabric, Forge
+- `1.21.11`: Fabric, NeoForge
+- `26.1`: Fabric
+- `26.1.1`: Fabric
 - `26.1.2`: Fabric
 
 ## Building

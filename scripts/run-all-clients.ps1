@@ -21,10 +21,10 @@ The archive root is written under `build/client-run-logs/<timestamp>/`.
 .\scripts\run-all-clients.ps1 -ListOnly
 
 .EXAMPLE
-.\scripts\run-all-clients.ps1 -Loaders forge,fabric -Versions 1.20.1,1.21.11
+.\scripts\run-all-clients.ps1 -Loaders forge,fabric -Versions 1.20.1,26.1.2
 
 .EXAMPLE
-.\scripts\run-all-clients.ps1 -StartAt forge:1.21.11
+.\scripts\run-all-clients.ps1 -StartAt neoforge:1.21.11
 #>
 param(
     [string[]]$Versions,
@@ -191,7 +191,7 @@ if ($StartAt) {
     }
 
     if ($startIndex -lt 0) {
-        throw "StartAt '$StartAt' was not found. Use values like fabric:1.21.11 or forge:1.20.1."
+        throw "StartAt '$StartAt' was not found. Use values like fabric:26.1.2, neoforge:1.21.11, or forge:1.20.1."
     }
 
     $queue = @($queue[$startIndex..($queue.Count - 1)])
