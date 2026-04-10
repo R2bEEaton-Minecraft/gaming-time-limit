@@ -47,7 +47,7 @@ public final class TimeLimitConfigScreen extends Screen {
         int rowY = this.height / 4 + 4;
 
         this.remainingTimeButton = this.addRenderableWidget(
-            Button.builder(Component.empty(), button -> {})
+            Button.builder(this.getRemainingTimeButtonMessage(), button -> {})
                 .bounds(left, rowY, 200, 20)
                 .build()
         );
@@ -196,12 +196,24 @@ public final class TimeLimitConfigScreen extends Screen {
             return;
         }
 
-        TimeLimitState state = GamingTimeLimitClient.getInstance().getState();
-        Component message = ClientText.tr(
+        this.remainingTimeButton.setMessage(this.getRemainingTimeButtonMessage());
+    }
+
+    private TimeLimitState getState() {
+        return GamingTimeLimitClient.getInstance().getState();
+    }
+
+    private Component getRemainingTimeMessage() {
+        return ClientText.tr(
             "gamingtimelimit.screen.remaining",
             "Remaining Today: %s",
-            TimeFormatter.formatDuration(state.getRemainingMillis())
+            TimeFormatter.formatDuration(this.getState().getRemainingMillis())
         );
-        this.remainingTimeButton.setMessage(state.isExhausted() ? message.copy().withStyle(ChatFormatting.RED) : message);
+    }
+
+    private Component getRemainingTimeButtonMessage() {
+        TimeLimitState state = this.getState();
+        Component message = this.getRemainingTimeMessage();
+        return state.isExhausted() ? message.copy().withStyle(ChatFormatting.RED) : message;
     }
 }
