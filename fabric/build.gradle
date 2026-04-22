@@ -53,6 +53,10 @@ dependencies {
             def moduleVersion = resolveFabricApiModuleVersion(moduleName)
             modImplementation "net.fabricmc.fabric-api:${moduleName}:${moduleVersion}"
         }
-        modImplementation "com.terraformersmc:modmenu:${gradle.ext.modmenu_version}"
+        if ("${gradle.ext.minecraft_version}".startsWith("26.")) {
+            implementation "com.terraformersmc:modmenu:${gradle.ext.modmenu_version}"
+        } else {
+            modImplementation "com.terraformersmc:modmenu:${gradle.ext.modmenu_version}"
+        }
     }
 }

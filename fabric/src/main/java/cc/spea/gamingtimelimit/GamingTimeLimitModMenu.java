@@ -1,7 +1,6 @@
 package cc.spea.gamingtimelimit;
 
-#if MC_VER != MC_1_21_11 && MC_VER != MC_26_1 && MC_VER != MC_26_1_1 && MC_VER != MC_26_1_2
-import cc.spea.gamingtimelimit.client.GamingTimeLimitClient;
+#if MC_VER != MC_1_21_11 && MC_VER != MC_26_1 && MC_VER != MC_26_1_1
 import cc.spea.gamingtimelimit.client.TimeLimitConfigScreen;
 
 import com.terraformersmc.modmenu.api.ConfigScreenFactory;
